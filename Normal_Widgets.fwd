@@ -63,7 +63,7 @@
       "requiredVersion": "0.0.2",
       "version": "0.15.1",
       "author": "Baran",
-      "url": "https://raw.githubusercontent.com/XxOldYogurtxX/Myself_Forward_Widgets/refs/heads/main/Normal/universal_danmu.js"
+      "url": "https://unpkg.com/@forward-widget/danmu-universe"
     },
     {
       "id": "forward.auto.danmu",
