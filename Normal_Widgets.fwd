@@ -5,11 +5,11 @@
     {
       "id": "move_list",
       "title": "影视榜单",
-      "description": "影视动画榜单",
+      "description": "聚合查询豆瓣/TMDB/IMDB/BGM影视数据",
       "requiredVersion": "0.0.2",
-      "version": "1.5.0",
-      "author": "𝓑𝓾𝓽𝓽𝓮𝓻𝓯𝓵𝔂",
-      "url": "https://raw.githubusercontent.com/XxOldYogurtxX/Myself_Forward_Widgets/refs/heads/main/Normal/move_list.js"
+      "version": "1.3.3",
+      "author": "阿米诺斯",
+      "url": "https://raw.githubusercontent.com/XxOldYogurtxX/Myself_Forward_Widgets/refs/heads/main/Normal/combined.js"
     },
     {
       "id": "bangumi_charts_tmdb_v3",
