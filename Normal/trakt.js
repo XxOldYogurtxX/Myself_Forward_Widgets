@@ -1,61 +1,63 @@
-// Trakt 组件 (API + OAuth工具版)
+// Trakt 组件 (OAuth 自动化版)
 WidgetMetadata = {
-    id: "Trakt_API_Pro",
-    title: "Trakt (API & Token版)",
-    modules: [
-        {
-            title: "🛠️ 工具：获取 Token (首次使用)",
+    id: "Trakt_OAuth_Auto",
+    title: "Trakt (OAuth版)",
+    modules: [{
+            title: "🔑 获取/更新 Token (运行此项)",
             requiresWebView: false,
-            functionName: "generateToken",
-            cacheDuration: 0, // 不缓存，每次运行都执行
-            params: [
-                {
+            functionName: "getOAuthToken", // 新增的认证函数
+            cacheDuration: 0, // 不缓存
+            params: [{
                     name: "client_id",
                     title: "Client ID",
                     type: "input",
-                    description: "从 Trakt 申请的应用 ID",
+                    description: "必须填写。在 Trakt 官网申请 App 获取。",
                 },
                 {
                     name: "client_secret",
                     title: "Client Secret",
                     type: "input",
-                    description: "从 Trakt 申请的应用 Secret (注意保密)",
-                },
-                {
-                    name: "auth_code",
-                    title: "授权码 (Code)",
-                    type: "input",
-                    description: "若为空：脚本会生成授权链接，去浏览器打开获取Code。若不为空：脚本将用此Code换取Token。",
+                    description: "必须填写。在 Trakt 官网申请 App 获取。",
                 }
             ],
         },
         {
-            title: "Trakt 我看 (API)",
+            title: "Trakt 我看 (需Token)",
             requiresWebView: false,
             functionName: "loadInterestItems",
             cacheDuration: 3600,
-            params: [
-                {
+            params: [{
                     name: "oauth_token",
                     title: "OAuth Token",
                     type: "input",
-                    description: "使用上方工具获取到的 Access Token (必填)",
+                    description: "运行上方'获取Token'模块后，将日志里的Token复制到这里",
                 },
                 {
                     name: "client_id",
                     title: "Client ID",
                     type: "input",
-                    description: "Trakt API Client ID",
+                    description: "必须填写",
                 },
                 {
                     name: "status",
                     title: "状态",
                     type: "enumeration",
-                    enumOptions: [
-                        { title: "正在追 (Progress)", value: "progress" }, // 需要 Token
-                        { title: "个性化推荐 (Recs)", value: "recommendations" }, // 需要 Token
-                        { title: "想看 (Watchlist)", value: "watchlist" },
-                        { title: "看过 (History)", value: "history" }
+                    enumOptions: [{
+                            title: "想看 (Watchlist)",
+                            value: "sync/watchlist", // 接口变更为 sync
+                        },
+                        {
+                            title: "看过-电影 (History)",
+                            value: "sync/history/movies",
+                        },
+                        {
+                            title: "看过-电视 (History)",
+                            value: "sync/history/shows",
+                        },
+                        {
+                            title: "在看 (Progress)", // 终于可以用这个了！
+                            value: "sync/playback",
+                        }
                     ],
                 },
                 {
@@ -65,124 +67,168 @@ WidgetMetadata = {
                 },
             ],
         },
-        // ... (可以保留其他模块，只需增加 oauth_token 参数)
+        {
+            title: "Trakt 推荐 (需Token)",
+            requiresWebView: false,
+            functionName: "loadSuggestionItems",
+            cacheDuration: 43200,
+            params: [{
+                    name: "oauth_token",
+                    title: "OAuth Token",
+                    type: "input",
+                },
+                {
+                    name: "client_id",
+                    title: "Client ID",
+                    type: "input",
+                },
+                {
+                    name: "type",
+                    title: "类型",
+                    type: "enumeration",
+                    enumOptions: [{
+                            title: "个性化推荐电影",
+                            value: "recommendations/movies",
+                        },
+                        {
+                            title: "个性化推荐电视",
+                            value: "recommendations/shows",
+                        },
+                    ],
+                },
+            ],
+        }
     ],
     version: "3.0.0",
-    description: "集成了 Token 生成工具。先使用工具模块获取 Token，填入'我看'模块即可解锁个性化推荐和进度。",
-    author: "Refactored_AI",
-    site: "https://trakt.tv"
+    description: "支持自动 OAuth 流程。请先填写 ID 和 Secret 运行第一个模块获取 Token，然后填入 Token 使用其他功能。",
+    author: "Refactored_AI"
 };
 
-// --- 核心功能：Token 生成器 ---
-async function generateToken(params = {}) {
+// --- 辅助工具：延时函数 ---
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// --- 核心功能 1: 自动获取 Token (Device Flow) ---
+async function getOAuthToken(params = {}) {
     const clientId = params.client_id;
     const clientSecret = params.client_secret;
-    const code = params.auth_code;
 
     if (!clientId || !clientSecret) {
-        return [{ title: "错误：请填写 Client ID 和 Secret", type: "text" }];
+        console.error("❌ 错误：必须填写 Client ID 和 Client Secret 才能获取 Token");
+        return { error: "Missing Credentials" };
     }
 
-    // 阶段 1：用户还没填 Code，生成授权链接提示用户去浏览器
-    if (!code) {
-        const redirectUri = "urn:ietf:wg:oauth:2.0:oob";
-        const authUrl = `https://trakt.tv/oauth/authorize?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}`;
-        
-        console.log("授权链接: " + authUrl);
-        
-        // 返回一个特殊的界面告诉用户怎么做
-        // 注意：不同 Widget 平台的复制/跳转方式不同，这里打印日志并尝试返回文本
-        return [
-            { 
-                title: "⚠️ 第一步：获取 Code", 
-                body: "请复制下方日志中的链接，在浏览器打开，点击 Approve，然后复制页面显示的 8 位代码，填入本模块的 '授权码' 栏。",
-                type: "text"
-            },
-            {
-                title: "点击这里复制链接 (如果支持)", 
-                url: authUrl, // 尝试让用户点击跳转
-                body: authUrl,
-                type: "text"
-            }
-        ];
-    }
+    console.log("🚀 开始 Device Code 授权流程...");
 
-    // 阶段 2：用户填了 Code，开始换取 Token
-    const url = "https://api.trakt.tv/oauth/token";
-    const payload = {
-        code: code,
-        client_id: clientId,
-        client_secret: clientSecret,
-        redirect_uri: "urn:ietf:wg:oauth:2.0:oob",
-        grant_type: "authorization_code"
+    // 1. 请求设备代码
+    const codeUrl = "https://api.trakt.tv/oauth/device/code";
+    const codeBody = {
+        client_id: clientId
     };
 
     try {
-        const response = await Widget.http.post(url, {
+        const codeRes = await Widget.http.post(codeUrl, {
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload) // 确保 body 是字符串
+            body: JSON.stringify(codeBody)
         });
 
-        console.log("Token Response:", response.data);
-        
-        const data = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
+        const codeData = JSON.parse(codeRes.data);
+        const userCode = codeData.user_code;
+        const verificationUrl = codeData.verification_url;
+        const deviceCode = codeData.device_code;
+        const interval = codeData.interval || 5;
+        const expiresIn = codeData.expires_in;
 
-        if (data.access_token) {
-            return [
-                {
-                    title: "✅ 获取成功！",
-                    body: "请复制下方的 Access Token，并填入其他模块的 'OAuth Token' 栏中。",
-                    type: "text"
-                },
-                {
-                    title: "Access Token (长按复制)",
-                    body: data.access_token,
-                    type: "text" // 这里的 body 就是 token，方便用户复制
-                },
-                {
-                    title: "Refresh Token (备用)",
-                    body: data.refresh_token,
-                    type: "text"
+        console.log(`\n⚠️ --- 请执行以下操作 ---`);
+        console.log(`1. 复制此代码: 【 ${userCode} 】`);
+        console.log(`2. 浏览器打开: ${verificationUrl}`);
+        console.log(`3. 在网页输入代码并点击 "Yes" 授权`);
+        console.log(`(脚本正在后台等待您的授权...)\n`);
+
+        // 2. 轮询等待用户授权
+        const tokenUrl = "https://api.trakt.tv/oauth/device/token";
+        const tokenBody = {
+            code: deviceCode,
+            client_id: clientId,
+            client_secret: clientSecret
+        };
+
+        let attempts = 0;
+        const maxAttempts = expiresIn / interval;
+
+        while (attempts < maxAttempts) {
+            await sleep(interval * 1000); // 等待几秒
+            attempts++;
+
+            try {
+                const tokenRes = await Widget.http.post(tokenUrl, {
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(tokenBody)
+                });
+                
+                // 注意：如果未授权，Trakt 通常返回 400 Pending，Widget.http 可能会抛出异常或返回错误码
+                // 这里假设 Widget.http 不会直接 throw，而是返回 status
+                
+                if (tokenRes.status === 200) {
+                    const tokenData = JSON.parse(tokenRes.data);
+                    const accessToken = tokenData.access_token;
+                    
+                    console.log(`\n✅ 授权成功！`);
+                    console.log(`==========================================`);
+                    console.log(`您的 OAuth Token (请复制下方字符串):`);
+                    console.log(accessToken);
+                    console.log(`==========================================`);
+                    console.log(`请将此 Token 填入组件配置的 "OAuth Token" 栏位中。`);
+                    
+                    return { 
+                        success: true, 
+                        message: "Token获取成功，请查看日志",
+                        token: accessToken 
+                    };
                 }
-            ];
-        } else {
-            return [{ title: "❌ 获取失败", body: "请检查 Code 是否过期或 ID/Secret 是否正确。", type: "text" }];
+            } catch (e) {
+                // 忽略 Pending 期间的 400 错误
+            }
+            
+            console.log(`⏳ 等待授权中... (${attempts}/${Math.floor(maxAttempts)})`);
         }
+
+        console.error("❌ 超时：未在规定时间内完成授权。");
+        return { error: "Timeout" };
+
     } catch (e) {
-        return [{ title: "网络错误", body: e.message, type: "text" }];
+        console.error("❌ 请求失败:", e);
+        return { error: e.message };
     }
 }
 
-// --- 通用 API 请求 (支持 Token) ---
+// --- 通用 API 请求 (带 Token) ---
 async function fetchTraktApi(endpoint, clientId, token, params = {}) {
     const baseUrl = "https://api.trakt.tv";
-    
-    // 构建 Query String
     const queryString = Object.keys(params)
         .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(params[key])}`)
         .join('&');
-    
     const url = `${baseUrl}${endpoint}?${queryString}`;
-    
-    // 构建 Headers
-    const headers = {
-        "Content-Type": "application/json",
-        "trakt-api-version": "2",
-        "trakt-api-key": clientId
-    };
-    
-    // 关键：如果有 Token，则添加 Authorization
-    if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-    }
 
-    console.log(`[Request] ${url}`);
-    
     try {
-        const response = await Widget.http.get(url, { headers: headers });
-        return typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
+        const headers = {
+            "Content-Type": "application/json",
+            "trakt-api-version": "2",
+            "trakt-api-key": clientId
+        };
+        
+        if (token) {
+            headers["Authorization"] = `Bearer ${token}`;
+        }
+
+        const response = await Widget.http.get(url, { headers });
+        
+        if (response.status !== 200) {
+            console.error(`Error ${response.status}:`, response.data);
+            return [];
+        }
+        return JSON.parse(response.data);
     } catch (e) {
-        console.error("API Error:", e);
+        console.error("Fetch Error:", e);
         return [];
     }
 }
@@ -191,8 +237,7 @@ async function fetchTraktApi(endpoint, clientId, token, params = {}) {
 function parseTraktItems(items) {
     if (!Array.isArray(items)) return [];
     return items.map(item => {
-        // 兼容不同接口返回的结构: item.movie, item.show, 或者直接是 movie/show 对象
-        const data = item.movie || item.show || item;
+        const data = item.movie || item.show || item; // 兼容不同接口结构
         if (!data || !data.ids) return null;
         if (data.ids.imdb) return { id: data.ids.imdb, type: "imdb" };
         if (data.ids.tmdb) return { id: `${data.ids.tmdb}`, type: "tmdb" };
@@ -200,35 +245,37 @@ function parseTraktItems(items) {
     }).filter(Boolean);
 }
 
-// --- 业务逻辑：我看/推荐/进度 ---
+// --- 模块 2: 我看 (支持私有数据) ---
 async function loadInterestItems(params = {}) {
-    const clientId = params.client_id;
-    const token = params.oauth_token;
-    const status = params.status || "watchlist"; 
-    const page = params.page || 1;
+    const { oauth_token, client_id, status = "sync/watchlist", page = 1 } = params;
+    if (!client_id || !oauth_token) return [];
+
+    // status 示例: "sync/watchlist" 或 "sync/playback"
+    let endpoint = `/${status}`;
     
-    if (!clientId) return []; // Token 是可选的（对于 public 数据），但 ClientID 必填
-
-    let endpoint = "";
-    let apiParams = { page: page, limit: 20, extended: "full" };
-
-    // 根据不同状态选择不同接口
-    if (status === "recommendations") {
-        if (!token) throw new Error("个性化推荐必须填写 OAuth Token");
-        endpoint = "/recommendations/movies"; // 默认推荐电影，可改为 shows
-        apiParams.ignore_collected = "true"; // 过滤掉已收集的
-    } else if (status === "progress") {
-        if (!token) throw new Error("追剧进度必须填写 OAuth Token");
-        endpoint = "/sync/playback/episodes"; // 获取播放进度
-        // 进度接口返回的数据结构略有不同，需要特殊处理，这里先做通用处理
-    } else if (status === "watchlist") {
-        // 如果有 Token，获取自己的；没 Token，需要 username (这里简化为必须有 token 获取自己的)
-        endpoint = "/sync/watchlist"; 
-        if (!token) throw new Error("此版本 Watchlist 需 Token (或修改代码指定 Username)");
-    } else {
-        endpoint = "/sync/history";
+    // 如果是 playback (在看)，不需要 page 参数，通常有 limit
+    const apiParams = {
+        extended: "full",
+        page: page,
+        limit: 20
+    };
+    
+    if (status.includes("playback")) {
+        // playback 接口略有不同，不需要 page，limit 默认 10
+        delete apiParams.page;
+        apiParams.limit = 20; 
     }
 
-    const data = await fetchTraktApi(endpoint, clientId, token, apiParams);
+    const data = await fetchTraktApi(endpoint, client_id, oauth_token, apiParams);
+    return parseTraktItems(data);
+}
+
+// --- 模块 3: 推荐 (支持个性化) ---
+async function loadSuggestionItems(params = {}) {
+    const { oauth_token, client_id, type = "recommendations/movies" } = params;
+    if (!client_id || !oauth_token) return [];
+
+    const endpoint = `/${type}`;
+    const data = await fetchTraktApi(endpoint, client_id, oauth_token, { limit: 20, extended: "full" });
     return parseTraktItems(data);
 }
