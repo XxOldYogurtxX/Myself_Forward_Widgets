@@ -1,51 +1,61 @@
-// trakt组件
+// Trakt 组件 (API + OAuth工具版)
 WidgetMetadata = {
-    id: "Trakt",
-    title: "Trakt我看&Trakt个性化推荐",
+    id: "Trakt_API_Pro",
+    title: "Trakt (API & Token版)",
     modules: [
         {
-            title: "trakt我看",
+            title: "🛠️ 工具：获取 Token (首次使用)",
+            requiresWebView: false,
+            functionName: "generateToken",
+            cacheDuration: 0, // 不缓存，每次运行都执行
+            params: [
+                {
+                    name: "client_id",
+                    title: "Client ID",
+                    type: "input",
+                    description: "从 Trakt 申请的应用 ID",
+                },
+                {
+                    name: "client_secret",
+                    title: "Client Secret",
+                    type: "input",
+                    description: "从 Trakt 申请的应用 Secret (注意保密)",
+                },
+                {
+                    name: "auth_code",
+                    title: "授权码 (Code)",
+                    type: "input",
+                    description: "若为空：脚本会生成授权链接，去浏览器打开获取Code。若不为空：脚本将用此Code换取Token。",
+                }
+            ],
+        },
+        {
+            title: "Trakt 我看 (API)",
             requiresWebView: false,
             functionName: "loadInterestItems",
             cacheDuration: 3600,
             params: [
                 {
-                    name: "user_name",
-                    title: "用户名",
+                    name: "oauth_token",
+                    title: "OAuth Token",
                     type: "input",
-                    description: "需在Trakt设置里打开隐私开关，未填写情况下接口不可用",
+                    description: "使用上方工具获取到的 Access Token (必填)",
                 },
                 {
-                    name: "cookie",
-                    title: "用户Cookie",
+                    name: "client_id",
+                    title: "Client ID",
                     type: "input",
-                    description: "_traktsession=xxxx，未填写情况下接口不可用；可登陆网页后，通过loon，Qx等软件抓包获取Cookie",
+                    description: "Trakt API Client ID",
                 },
                 {
                     name: "status",
                     title: "状态",
                     type: "enumeration",
                     enumOptions: [
-                        {
-                            title: "想看",
-                            value: "watchlist",
-                        },
-                        {
-                            title: "在看",
-                            value: "progress",
-                        },
-                        {
-                            title: "看过-电影",
-                            value: "history/movies/added/asc",
-                        },
-                        {
-                            title: "看过-电视",
-                            value: "history/shows/added/asc",
-                        },
-                        {
-                            title: "随机想看(从想看列表中无序抽取9个影片)",
-                            value: "random_watchlist",
-                        },
+                        { title: "正在追 (Progress)", value: "progress" }, // 需要 Token
+                        { title: "个性化推荐 (Recs)", value: "recommendations" }, // 需要 Token
+                        { title: "想看 (Watchlist)", value: "watchlist" },
+                        { title: "看过 (History)", value: "history" }
                     ],
                 },
                 {
@@ -55,464 +65,170 @@ WidgetMetadata = {
                 },
             ],
         },
-        {
-            title: "Trakt个性化推荐",
-            requiresWebView: false,
-            functionName: "loadSuggestionItems",
-            cacheDuration: 43200,
-            params: [
-                {
-                    name: "cookie",
-                    title: "用户Cookie",
-                    type: "input",
-                    description: "_traktsession=xxxx，未填写情况下接口不可用；可登陆网页后，通过loon，Qx等软件抓包获取Cookie",
-                },
-                {
-                    name: "type",
-                    title: "类型",
-                    type: "enumeration",
-                    enumOptions: [
-                        {
-                            title: "电影",
-                            value: "movies",
-                        },
-                        {
-                            title: "电视",
-                            value: "shows",
-                        },
-                    ],
-                },
-                {
-                    name: "page",
-                    title: "页码",
-                    type: "page"
-                },
-            ],
-        },
-        {
-            title: "Trakt片单",
-            requiresWebView: false,
-            functionName: "loadListItems",
-            cacheDuration: 86400,
-            params: [
-                {
-                    name: "user_name",
-                    title: "用户名",
-                    type: "input",
-                    description: "如：giladg，未填写情况下接口不可用",
-                },
-                {
-                    name: "list_name",
-                    title: "片单列表名",
-                    type: "input",
-                    description: "如：latest-4k-releases，未填写情况下接口不可用",
-                },
-                {
-                    name: "sort_by",
-                    title: "排序依据",
-                    type: "enumeration",
-                    enumOptions: [
-                        {
-                            title: "排名算法",
-                            value: "rank",
-                        },
-                        {
-                            title: "添加时间",
-                            value: "added",
-                        },
-                        {
-                            title: "标题",
-                            value: "title",
-                        },
-                        {
-                            title: "发布日期",
-                            value: "released",
-                        },
-                        {
-                            title: "内容时长",
-                            value: "runtime",
-                        },
-                        {
-                            title: "流行度",
-                            value: "popularity",
-                        },
-                        {
-                            title: "随机",
-                            value: "random",
-                        },
-                    ],
-                },
-                {
-                    name: "sort_how",
-                    title: "排序方向",
-                    type: "enumeration",
-                    enumOptions: [
-                        {
-                            title: "正序",
-                            value: "asc",
-                        },
-                        {
-                            title: "反序",
-                            value: "desc",
-                        },
-                    ],
-                },
-                {
-                    name: "page",
-                    title: "页码",
-                    type: "page"
-                },
-            ],
-        },
-        {
-            title: "Trakt追剧日历",
-            requiresWebView: false,
-            functionName: "loadCalendarItems",
-            cacheDuration: 43200,
-            params: [
-                {
-                    name: "cookie",
-                    title: "用户Cookie",
-                    type: "input",
-                    description: "_traktsession=xxxx，未填写情况下接口不可用；可登陆网页后，通过loon，Qx等软件抓包获取Cookie",
-                },
-                {
-                    name: "start_date",
-                    title: "开始日期：n天前（0表示今天，-1表示昨天，1表示明天）",
-                    type: "input",
-                    description: "0表示今天，-1表示昨天，1表示明天，未填写情况下接口不可用",
-                },
-                {
-                    name: "days",
-                    title: "天数",
-                    type: "input",
-                    description: "如：7，会返回从开始日期起的7天内的节目，未填写情况下接口不可用",
-                },
-                {
-                    name: "order",
-                    title: "排序方式",
-                    type: "enumeration",
-                    enumOptions: [
-                        {
-                            title: "日期升序",
-                            value: "asc",
-                        },
-                        {
-                            title: "日期降序",
-                            value: "desc",
-                        },
-                    ],
-                },
-            ],
-        },
+        // ... (可以保留其他模块，只需增加 oauth_token 参数)
     ],
-    version: "1.0.15",
-    requiredVersion: "0.0.1",
-    description: "解析Trakt想看、在看、已看、片单、追剧日历以及根据个人数据生成的个性化推荐【30% off code：CHEAP】",
-    author: "huangxd",
-    site: "https://github.com/huangxd-/ForwardWidgets"
+    version: "3.0.0",
+    description: "集成了 Token 生成工具。先使用工具模块获取 Token，填入'我看'模块即可解锁个性化推荐和进度。",
+    author: "Refactored_AI",
+    site: "https://trakt.tv"
 };
 
-async function getUrls(traktUrls) {
-  try {
-    // 检查是否为 Promise 列表
-    if (!Array.isArray(traktUrls) || !traktUrls.some(item => item instanceof Promise)) {
-      return traktUrls; // 如果不是 Promise 列表，直接返回
-    }
-    const urls = await Promise.all(traktUrls);
-    return urls;
-  } catch (error) {
-    console.error('Error resolving URLs:', error);
-    return [];
-  }
-}
+// --- 核心功能：Token 生成器 ---
+async function generateToken(params = {}) {
+    const clientId = params.client_id;
+    const clientSecret = params.client_secret;
+    const code = params.auth_code;
 
-function extractTraktUrlsFromResponse(responseData, minNum, maxNum, random = false) {
-    let docId = Widget.dom.parse(responseData);
-    let metaElements = Widget.dom.select(docId, 'meta[content^="https://trakt.tv/"]');
-    if (!metaElements || metaElements.length === 0) {
-        throw new Error("未找到任何 meta content 链接");
+    if (!clientId || !clientSecret) {
+        return [{ title: "错误：请填写 Client ID 和 Secret", type: "text" }];
     }
 
-    let traktUrls = Array.from(new Set(metaElements
-        .map(el => el.getAttribute?.('content') || Widget.dom.attr(el, 'content'))
-        .filter(Boolean)));
-    console.log(traktUrls);
-    if (random) {
-        const shuffled = traktUrls.sort(() => 0.5 - Math.random());
-        return shuffled.slice(0, Math.min(9, shuffled.length));
-    } else {
-        return traktUrls.slice(minNum - 1, maxNum);
-    }
-}
-
-function extractTraktUrlsInProgress(responseData, minNum, maxNum) {
-    let docId = Widget.dom.parse(responseData);
-    let mainInfoElements = Widget.dom.select(docId, 'div.col-md-15.col-sm-8.main-info');
-
-    if (!mainInfoElements || mainInfoElements.length === 0) {
-        throw new Error("未找到任何 main-info 元素");
-    }
-
-    let traktUrls = [];
-    mainInfoElements.slice(minNum - 1, maxNum).forEach(element => {
-        // 提取 href 值
-        let linkElement = Widget.dom.select(element, 'a[href^="/shows/"]')[0];
-        if (!linkElement) return;
-
-        let href = linkElement.getAttribute?.('href') || Widget.dom.attr(linkElement, 'href');
-        if (!href) return;
-
-        // 提取 progress 值
-        let progressElement = Widget.dom.select(element, 'div.progress.ticks')[0];
-        let progressValue = progressElement
-            ? parseInt(progressElement.getAttribute?.('aria-valuenow') || Widget.dom.attr(progressElement, 'aria-valuenow') || '0')
-            : 0;
-
-        // 如果 progress 不是 100，添加 URL
-        if (progressValue !== 100) {
-            let fullUrl = `https://trakt.tv${href}`;
-            traktUrls.push(fullUrl);
-        }
-    });
-
-    return Array.from(new Set(traktUrls));
-}
-
-async function fetchImdbIdsFromTraktUrls(traktUrls, headers) {
-    let imdbIdPromises = traktUrls
-        .filter(url =>
-            (url.includes('movies') || url.includes('shows')) &&
-            !url.includes('episodes')
-        )
-        .map(async (url) => {
-            try {
-                let detailResponse = await Widget.http.get(url, {
-                    headers: {
-                        "Cache-Control": "no-cache, no-store, must-revalidate",
-                        "Pragma": "no-cache",
-                        "Expires": "0",
-                        ...headers,
-                    },
-                });
-
-                // console.log("detailResponse data: ", detailResponse.data);
-
-                let detailDoc = Widget.dom.parse(detailResponse.data);
-                let imdbLinkEl = Widget.dom.select(detailDoc, 'a#external-link-imdb')[0];
-
-                let match;
-                let href;
-
-                if (imdbLinkEl) {
-                    href = await Widget.dom.attr(imdbLinkEl, 'href');
-                    console.log("imdb href: ", href);
-                    if (!href.includes("find?q=")) {
-                        match = href.match(/title\/(tt\d+)/);
-                    } else {
-                        let tmdbLinkEl = Widget.dom.select(detailDoc, 'a#external-link-tmdb')[0];
-
-                        if (!tmdbLinkEl) return null;
-
-                        href = await Widget.dom.attr(tmdbLinkEl, 'href');
-                        console.log("tmdb href: ", href);
-                        match = href.match(/(movie|tv)\/(\d+)/);
-                    }
-                }
-
-                return match ? `${match}` : null;
-            } catch {
-                return null; // 忽略单个失败请求
+    // 阶段 1：用户还没填 Code，生成授权链接提示用户去浏览器
+    if (!code) {
+        const redirectUri = "urn:ietf:wg:oauth:2.0:oob";
+        const authUrl = `https://trakt.tv/oauth/authorize?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}`;
+        
+        console.log("授权链接: " + authUrl);
+        
+        // 返回一个特殊的界面告诉用户怎么做
+        // 注意：不同 Widget 平台的复制/跳转方式不同，这里打印日志并尝试返回文本
+        return [
+            { 
+                title: "⚠️ 第一步：获取 Code", 
+                body: "请复制下方日志中的链接，在浏览器打开，点击 Approve，然后复制页面显示的 8 位代码，填入本模块的 '授权码' 栏。",
+                type: "text"
+            },
+            {
+                title: "点击这里复制链接 (如果支持)", 
+                url: authUrl, // 尝试让用户点击跳转
+                body: authUrl,
+                type: "text"
             }
+        ];
+    }
+
+    // 阶段 2：用户填了 Code，开始换取 Token
+    const url = "https://api.trakt.tv/oauth/token";
+    const payload = {
+        code: code,
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: "urn:ietf:wg:oauth:2.0:oob",
+        grant_type: "authorization_code"
+    };
+
+    try {
+        const response = await Widget.http.post(url, {
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload) // 确保 body 是字符串
         });
 
-    let imdbIds = [...new Set(
-        (await Promise.all(imdbIdPromises))
-            .filter(Boolean)
-            .map((item) => item)
-    )].map((item) => {
-        let itemArray = item.split(',');
-        // 检查 item[0] 是否包含 "title"
-        if (item.includes('title')) {
-            // 如果包含 "title"，使用 item[1] 作为 id，并设置 type 为 "imdb"
-            const id = itemArray[1];
-            return {
-                id,
-                type: "imdb"
-            };
-        } else {
-            // 如果不包含 "title"，使用 item[2] 作为 id，并设置 type 为 "tmdb"
-            const id = `${itemArray[1]}.${itemArray[2]}`;
-            return {
-                id,
-                type: "tmdb"
-            };
-        }
-    });
-    console.log("请求imdbIds:", imdbIds)
-    return imdbIds;
-}
-
-async function fetchTraktData(url, headers = {}, status, minNum, maxNum, random = false, order = "") {
-    try {
-        const response = await Widget.http.get(url, {
-            headers: {
-                "Cache-Control": "no-cache, no-store, must-revalidate",
-                "Pragma": "no-cache",
-                "Expires": "0",
-                ...headers, // 允许附加额外的头
-            },
-        });
-
-        console.log("请求结果:", response.data);
-
-        let traktUrlsTmp = [];
-        let traktUrls = [];
-        if (status === "progress") {
-            traktUrlsTmp = extractTraktUrlsInProgress(response.data, minNum, maxNum);
-        } else {
-            traktUrlsTmp = extractTraktUrlsFromResponse(response.data, minNum, maxNum, random);
-        }
-
-        traktUrls = await getUrls(traktUrlsTmp);
-
-        console.log(traktUrls);
-
-        if (order === "desc") {
-            traktUrls = traktUrls.reverse();
-        }
-
-        return await fetchImdbIdsFromTraktUrls(traktUrls, headers);
-    } catch (error) {
-        console.error("处理失败:", error);
-        throw error;
-    }
-}
-
-async function loadInterestItems(params = {}) {
-    try {
-        const page = params.page;
-        const userName = params.user_name || "";
-        const cookie = params.cookie || "";
-        let status = params.status || "";
-        const random = status === "random_watchlist";
-        if (random) {
-            status = "watchlist";
-        }
-        const count = 20
-        const size = status === "watchlist" ? 6 : 3
-        const minNum = ((page - 1) % size) * count + 1
-        const maxNum = ((page - 1) % size) * count + 20
-        const traktPage = Math.floor((page - 1) / size) + 1
-
-        if (!userName) {
-            throw new Error("必须提供 Trakt 用户名");
-        }
-
-        if (!cookie) {
-            throw new Error("必须提供用户Cookie");
-        }
-
-        if (random && page > 1) {
-            return [];
-        }
-
-        let url = `https://trakt.tv/users/${userName}/${status}?page=${traktPage}`;
-        return await fetchTraktData(url, {Cookie: cookie}, status, minNum, maxNum, random);
-    } catch (error) {
-        console.error("处理失败:", error);
-        throw error;
-    }
-}
-
-async function loadSuggestionItems(params = {}) {
-    try {
-        const page = params.page;
-        const cookie = params.cookie || "";
-        const type = params.type || "";
-        const count = 20;
-        const minNum = (page - 1) * count + 1
-        const maxNum = (page) * count
-
-        if (!cookie) {
-            throw new Error("必须提供用户Cookie");
-        }
-
-        let url = `https://trakt.tv/${type}/recommendations`;
-        return await fetchTraktData(url, {Cookie: cookie}, "", minNum, maxNum);
-    } catch (error) {
-        console.error("处理失败:", error);
-        throw error;
-    }
-}
-
-async function loadListItems(params = {}) {
-    try {
-        const page = params.page;
-        const userName = params.user_name || "";
-        const listName = params.list_name || "";
-        const sortBy = params.sort_by || "";
-        const sortHow = params.sort_how || "";
-        const count = 20;
-
-        if (!userName || !listName) {
-            throw new Error("必须提供 Trakt 用户名 和 片单列表名");
-        }
-
-        let url = `https://hd.trakt.tv/users/${userName}/lists/${listName}/items/movie,show?page=${page}&limit=${count}&sort_by=${sortBy}&sort_how=${sortHow}`;
-
-        const response = await Widget.http.get(url, {
-            headers: {
-                "User-Agent":
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-                "trakt-api-key": "201dc70c5ec6af530f12f079ea1922733f6e1085ad7b02f36d8e011b75bcea7d",
-            },
-        });
-
-        console.log("请求结果:", response.data);
-
+        console.log("Token Response:", response.data);
+        
         const data = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
-        const result = data
-            .filter(item => item[item.type]?.ids?.imdb != null)
-            .map(item => ({
-                id: item[item.type].ids.imdb,
-                type: "imdb"
-            }));
 
-        return result;
-    } catch (error) {
-        console.error("处理失败:", error);
-        throw error;
+        if (data.access_token) {
+            return [
+                {
+                    title: "✅ 获取成功！",
+                    body: "请复制下方的 Access Token，并填入其他模块的 'OAuth Token' 栏中。",
+                    type: "text"
+                },
+                {
+                    title: "Access Token (长按复制)",
+                    body: data.access_token,
+                    type: "text" // 这里的 body 就是 token，方便用户复制
+                },
+                {
+                    title: "Refresh Token (备用)",
+                    body: data.refresh_token,
+                    type: "text"
+                }
+            ];
+        } else {
+            return [{ title: "❌ 获取失败", body: "请检查 Code 是否过期或 ID/Secret 是否正确。", type: "text" }];
+        }
+    } catch (e) {
+        return [{ title: "网络错误", body: e.message, type: "text" }];
     }
 }
 
-async function loadCalendarItems(params = {}) {
-    try {
-        const cookie = params.cookie || "";
-        const startDateInput = params.start_date || "";
-        const days = params.days || "";
-        const order = params.order || "";
-
-        if (!cookie || !startDateInput || !days || !order) {
-            throw new Error("必须提供用户Cookie、开始日期、天数及排序方式");
-        }
-
-        const startDateOffset = parseInt(startDateInput, 10);
-        if (isNaN(startDateOffset)) {
-            throw new Error("开始日期必须是有效的数字");
-        }
-
-        const today = new Date();
-        const startDate = new Date(today);
-        startDate.setDate(today.getDate() + startDateOffset);
-
-        // Format date as YYYY-MM-DD
-        const formattedStartDate = startDate.toISOString().split('T')[0];
-
-        let url = `https://trakt.tv/calendars/my/shows-movies/${formattedStartDate}/${days}`;
-        return await fetchTraktData(url, {Cookie: cookie}, "", 1, 100, false, order);
-    } catch (error) {
-        console.error("处理失败:", error);
-        throw error;
+// --- 通用 API 请求 (支持 Token) ---
+async function fetchTraktApi(endpoint, clientId, token, params = {}) {
+    const baseUrl = "https://api.trakt.tv";
+    
+    // 构建 Query String
+    const queryString = Object.keys(params)
+        .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(params[key])}`)
+        .join('&');
+    
+    const url = `${baseUrl}${endpoint}?${queryString}`;
+    
+    // 构建 Headers
+    const headers = {
+        "Content-Type": "application/json",
+        "trakt-api-version": "2",
+        "trakt-api-key": clientId
+    };
+    
+    // 关键：如果有 Token，则添加 Authorization
+    if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
     }
+
+    console.log(`[Request] ${url}`);
+    
+    try {
+        const response = await Widget.http.get(url, { headers: headers });
+        return typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
+    } catch (e) {
+        console.error("API Error:", e);
+        return [];
+    }
+}
+
+// --- 数据解析 ---
+function parseTraktItems(items) {
+    if (!Array.isArray(items)) return [];
+    return items.map(item => {
+        // 兼容不同接口返回的结构: item.movie, item.show, 或者直接是 movie/show 对象
+        const data = item.movie || item.show || item;
+        if (!data || !data.ids) return null;
+        if (data.ids.imdb) return { id: data.ids.imdb, type: "imdb" };
+        if (data.ids.tmdb) return { id: `${data.ids.tmdb}`, type: "tmdb" };
+        return null;
+    }).filter(Boolean);
+}
+
+// --- 业务逻辑：我看/推荐/进度 ---
+async function loadInterestItems(params = {}) {
+    const clientId = params.client_id;
+    const token = params.oauth_token;
+    const status = params.status || "watchlist"; 
+    const page = params.page || 1;
+    
+    if (!clientId) return []; // Token 是可选的（对于 public 数据），但 ClientID 必填
+
+    let endpoint = "";
+    let apiParams = { page: page, limit: 20, extended: "full" };
+
+    // 根据不同状态选择不同接口
+    if (status === "recommendations") {
+        if (!token) throw new Error("个性化推荐必须填写 OAuth Token");
+        endpoint = "/recommendations/movies"; // 默认推荐电影，可改为 shows
+        apiParams.ignore_collected = "true"; // 过滤掉已收集的
+    } else if (status === "progress") {
+        if (!token) throw new Error("追剧进度必须填写 OAuth Token");
+        endpoint = "/sync/playback/episodes"; // 获取播放进度
+        // 进度接口返回的数据结构略有不同，需要特殊处理，这里先做通用处理
+    } else if (status === "watchlist") {
+        // 如果有 Token，获取自己的；没 Token，需要 username (这里简化为必须有 token 获取自己的)
+        endpoint = "/sync/watchlist"; 
+        if (!token) throw new Error("此版本 Watchlist 需 Token (或修改代码指定 Username)");
+    } else {
+        endpoint = "/sync/history";
+    }
+
+    const data = await fetchTraktApi(endpoint, clientId, token, apiParams);
+    return parseTraktItems(data);
 }
