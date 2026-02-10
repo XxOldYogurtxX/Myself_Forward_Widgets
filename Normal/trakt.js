@@ -27,7 +27,7 @@ WidgetMetadata = {
                     name: "client_id",
                     title: "Client ID",
                     type: "input",
-                    defaultValue: "201dc70c5ec6af530f12f079ea1922733f6e1085ad7b02f36d8e011b75bcea7d",
+                    defaultValue: "390780d20e574b4a343f9924a79698cf89d566fb687f42edf620c9278450dfbe",
                     description: "默认公用ID，建议替换为自己的",
                 },
                 {
@@ -59,7 +59,7 @@ WidgetMetadata = {
                     name: "client_id",
                     title: "Client ID",
                     type: "input",
-                    defaultValue: "201dc70c5ec6af530f12f079ea1922733f6e1085ad7b02f36d8e011b75bcea7d"
+                    defaultValue: "390780d20e574b4a343f9924a79698cf89d566fb687f42edf620c9278450dfbe"
                 },
                 {
                     name: "client_secret",
