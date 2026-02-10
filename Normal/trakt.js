@@ -1,7 +1,7 @@
-// Trakt 组件 (TMDB 专用版 v7.0)
+// Trakt 组件 (TMDB标准格式版 v8.0)
 WidgetMetadata = {
-    id: "Trakt_TMDB_Only",
-    title: "Trakt (TMDB版)",
+    id: "Trakt_TMDB_Standard",
+    title: "Trakt (TMDB规范版)",
     modules: [
         {
             title: "Trakt 影视列表",
@@ -76,8 +76,8 @@ WidgetMetadata = {
             ],
         }
     ],
-    version: "7.0.0",
-    description: "专为 Forward 优化：仅输出 TMDB ID。修复了因 ID 类型不兼容导致的无法读取问题。",
+    version: "8.0.0",
+    description: "严格遵循 Forward 开发文档。返回标准 TMDB 格式 (id, type, mediaType)。",
     author: "Refactored_AI",
     site: "https://trakt.tv"
 };
@@ -85,6 +85,9 @@ WidgetMetadata = {
 // --- 核心 API 请求 ---
 async function fetchTraktApi(endpoint, clientId, token, params = {}) {
     if (!clientId) return null;
+
+    // 自动追加 extended=full 以获取 ids
+    if (!params.extended) params.extended = "full";
 
     const queryString = Object.keys(params)
         .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(params[key])}`)
@@ -100,32 +103,51 @@ async function fetchTraktApi(endpoint, clientId, token, params = {}) {
 
     try {
         const response = await Widget.http.get(url, { headers: headers });
-        if (response.status !== 200) {
-            console.error(`API Error ${response.status}`);
-            return []; 
-        }
+        if (response.status !== 200) return []; 
         return typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
     } catch (e) {
-        console.error("Net Error: " + e.message);
         return [];
     }
 }
 
-// --- 数据解析 (TMDB 核心修正) ---
+// --- 数据解析 (完全符合开发文档) ---
 function parseTraktItems(items) {
     if (!Array.isArray(items)) return [];
     
     const results = items.map(item => {
-        let data = item.movie || item.show || item;
-        // 特殊处理：Progress 接口
-        if (item.show && item.episode) data = item.show; 
+        // 1. 确定数据对象和类型
+        let data = null;
+        let mediaType = "movie"; // 默认为 movie
 
-        // 【修正点】优先提取 TMDB ID，并设置 type 为 "tmdb"
+        if (item.movie) {
+            data = item.movie;
+            mediaType = "movie";
+        } else if (item.show) {
+            data = item.show;
+            mediaType = "tv"; // Trakt叫show, TMDB/Forward叫tv
+        } else if (item.ids) {
+            // 如果根对象就是数据 (如 trending 某些接口)
+            data = item;
+            // 尝试通过 title 是否存在来猜测，或者默认为 movie
+            // 更严谨的是看 endpoint，但这里我们尽量从数据推断
+            // 只有 show 有 "aired_episodes" 属性
+            if (data.aired_episodes !== undefined) mediaType = "tv";
+        }
+
+        // 2. 提取 TMDB ID
         if (data && data.ids && data.ids.tmdb) {
-            return { 
-                id: String(data.ids.tmdb), // 转字符串以防万一
-                type: "tmdb" // Forward 只认这个！
+            const itemObj = { 
+                id: String(data.ids.tmdb), 
+                type: "tmdb",
+                mediaType: mediaType,
+                title: data.title || "", // 附带标题方便调试
             };
+
+            // 3. 尝试附带图片 (如果 Trakt 偶尔返回了)
+            // Trakt 通常不返回完整 image url，所以这里只作为备选
+            // Forward App 会根据 tmdb id 自动去拉取封面，所以这里不填 posterPath 也没关系
+            
+            return itemObj;
         }
         return null;
     }).filter(Boolean);
@@ -133,19 +155,17 @@ function parseTraktItems(items) {
     return results;
 }
 
-// --- 演示数据 (TMDB 版) ---
+// --- 演示数据 (标准格式) ---
 function getDemoData() {
     return [
-        { id: "157336", type: "tmdb" }, // 星际穿越 (Interstellar)
-        { id: "27205", type: "tmdb" },  // 盗梦空间 (Inception)
-        { id: "155", type: "tmdb" }     // 黑暗骑士 (Dark Knight)
+        { id: "157336", type: "tmdb", mediaType: "movie", title: "Interstellar" }, 
+        { id: "1396", type: "tmdb", mediaType: "tv", title: "Breaking Bad" }
     ];
 }
 
 // --- 主逻辑 ---
 async function loadInterestItems(params = {}) {
     const clientId = params.client_id;
-    // 1. 初始化防报错：无 ClientID 时返回演示数据
     if (!clientId) return getDemoData();
 
     const token = params.oauth_token;
@@ -154,11 +174,12 @@ async function loadInterestItems(params = {}) {
     const page = params.page || 1;
     
     let endpoint = "";
-    let apiParams = { page: page, limit: 20, extended: "full" };
+    let apiParams = { page: page, limit: 20 };
 
-    // 2. 路由选择
+    // 路由选择
     if (status === "trending") {
-        endpoint = "/movies/trending";
+        endpoint = "/movies/trending"; // 默认只看电影 Trending，混合比较麻烦
+        // 如果想混合，可以请求两次合并，但 Forward 列表通常单类型
     }
     else if (status === "recommendations") {
         if (!token) endpoint = "/movies/trending";
@@ -190,11 +211,9 @@ async function loadInterestItems(params = {}) {
         }
     }
 
-    // 3. 请求数据
     const data = await fetchTraktApi(endpoint, clientId, token, apiParams);
     const parsed = parseTraktItems(data);
 
-    // 4. 空数据兜底
     if (!parsed || parsed.length === 0) {
         return getDemoData();
     }
