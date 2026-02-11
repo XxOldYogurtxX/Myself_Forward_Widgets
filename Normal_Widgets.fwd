@@ -1,7 +1,7 @@
 {
   "title": "Normal Widgets",
   "description": "感谢各位大佬，自用备份模块",
-  "icon": "https://github.com/XxOldYogurtxX/Myself_Widgets/blob/main/pic/cat.png",
+  "icon": "https://github.com/XxOldYogurtxX/Myself_Widgets/blob/main/pic/cat.png?raw=true",
   "widgets": [
     {
       "id": "move_list",
